@@ -1,0 +1,84 @@
+import com.amazonaws.services.lambda.model.Runtime
+import jp.classmethod.aws.gradle.lambda.AWSLambdaUpdateFunctionCodeTask
+import jp.classmethod.aws.gradle.lambda.AWSLambdaCreateFunctionTask
+
+plugins {
+    id 'java'
+    id 'jp.classmethod.aws.lambda' version '0.35'
+}
+
+group 'com.vsubhuman'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+
+    compile 'com.amazonaws:aws-lambda-java-core:1.1.0'
+    compile 'com.google.guava:guava:23.0'
+    compile "org.telegram:telegrambots:3.2"
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+task writeVersion() << {
+    def file = new File("$projectDir/src/main/resources/version")
+    file.createNewFile()
+    file.text = "${version}"
+}
+processResources.dependsOn writeVersion
+
+jar {
+    from(configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }) {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+}
+
+aws {
+    profileName = 'default'
+}
+
+lambda {
+    region = "us-west-2"
+}
+
+def lambda_name_test = "MyBotTestLambdaName"
+def lambda_name_production = "MyBotProductionLambdaName"
+def lambda_role = "arn:aws:iam::${aws.accountId}:role/lambda-role"
+def lambda_handler = "com.vsubhuman.telegram.java_example.Main"
+
+task deploy(type: AWSLambdaUpdateFunctionCodeTask, dependsOn: build) {
+    functionName = lambda_name_test
+    zipFile = jar.archivePath
+}
+
+task deploy_production(type: AWSLambdaUpdateFunctionCodeTask, dependsOn: build) {
+    functionName = lambda_name_production
+    zipFile = jar.archivePath
+}
+
+task install_lambda(type: AWSLambdaCreateFunctionTask, dependsOn: build) {
+    functionName = lambda_name_test
+    handler = lambda_handler
+    zipFile = jar.archivePath
+    runtime = Runtime.Java8
+    role = lambda_role
+    timeout = 60
+    memorySize = 256
+}
+
+task install_lambda_production(type: AWSLambdaCreateFunctionTask, dependsOn: build) {
+    functionName = lambda_name_production
+    handler = lambda_handler
+    zipFile = jar.archivePath
+    runtime = Runtime.Java8
+    role = lambda_role
+    timeout = 300
+    memorySize = 512
+}
